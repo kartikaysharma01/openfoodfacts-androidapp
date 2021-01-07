@@ -3,17 +3,18 @@ package openfoodfacts.github.scrachx.openfood.features.product.view
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.ActivityInfo
-import android.os.Build
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
+import androidx.core.view.ViewCompat
 import androidx.fragment.app.Fragment
 import androidx.viewpager2.widget.ViewPager2
 import com.google.android.material.tabs.TabLayoutMediator
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.CompositeDisposable
+import io.reactivex.rxkotlin.addTo
 import openfoodfacts.github.scrachx.openfood.R
 import openfoodfacts.github.scrachx.openfood.databinding.ActivityProductBinding
 import openfoodfacts.github.scrachx.openfood.features.listeners.CommonBottomListenerInstaller.installBottomNavigation
@@ -57,9 +58,8 @@ class ProductViewFragment : Fragment(), OnRefreshListener {
         binding.toolbar.visibility = View.GONE
 
         adapterResult = setupViewPager(binding.pager)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            binding.pager.isNestedScrollingEnabled = true
-        }
+        ViewCompat.setNestedScrollingEnabled(binding.pager, true)
+
         TabLayoutMediator(binding.tabs, binding.pager) { tab, position ->
             tab.text = adapterResult.getPageTitle(position)
         }.attach()
@@ -92,13 +92,14 @@ class ProductViewFragment : Fragment(), OnRefreshListener {
     override fun onOptionsItemSelected(item: MenuItem) = onOptionsItemSelected(requireActivity(), item)
 
     override fun onRefresh() {
-        disp.add(client.getProductStateFull(productState.product!!.code)
+        client.getProductStateFull(productState.product!!.code)
                 .observeOn(AndroidSchedulers.mainThread())
-                .subscribe({ newState ->
+                .doOnError { adapterResult.refresh(productState) }
+                .subscribe { newState ->
                     productState = newState
                     adapterResult.refresh(newState)
-                }) { adapterResult.refresh(productState) }
-        )
+                }.addTo(disp)
+
     }
 
     fun bottomSheetWillGrow() {

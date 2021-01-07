@@ -22,7 +22,7 @@ import kotlin.collections.ArrayList
 @JsonIgnoreProperties(ignoreUnknown = true)
 class Product : Serializable {
     @get:JsonAnyGetter
-    val additionalProperties = hashMapOf<String, Any?>()
+    val additionalProperties = HashMap<String, Any?>()
 
 
     @JsonAnySetter
@@ -57,8 +57,10 @@ class Product : Serializable {
     var aminoAcidTags: ArrayList<String> = arrayListOf()
 
 
-    val brands: String? = null
-        get() = field?.replace(",", ", ")
+    /**
+     * A string containing the brands, comma separated
+     */
+    var brands: String? = null
 
     /**
      * @return The brandsTags
