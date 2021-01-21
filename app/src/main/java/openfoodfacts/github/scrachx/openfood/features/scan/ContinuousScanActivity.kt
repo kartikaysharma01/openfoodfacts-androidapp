@@ -19,7 +19,6 @@ import android.content.Context
 import android.content.Intent
 import android.hardware.Camera
 import android.os.Bundle
-import android.os.PersistableBundle
 import android.util.Log
 import android.view.*
 import android.view.Gravity.CENTER
@@ -57,7 +56,7 @@ import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.disposables.Disposable
 import io.reactivex.schedulers.Schedulers
-import openfoodfacts.github.scrachx.openfood.AppFlavors
+import openfoodfacts.github.scrachx.openfood.AppFlavors.OFF
 import openfoodfacts.github.scrachx.openfood.AppFlavors.isFlavors
 import openfoodfacts.github.scrachx.openfood.R
 import openfoodfacts.github.scrachx.openfood.app.OFFApplication
@@ -137,17 +136,12 @@ class ContinuousScanActivity : AppCompatActivity() {
      * @param barcode barcode to serach
      */
     @Suppress("unused")
-    fun showProduct(barcode: String) {
+    internal fun showProduct(barcode: String) {
         productShowing = true
         binding.barcodeScanner.visibility = View.GONE
         binding.barcodeScanner.pause()
         binding.imageForScreenshotGenerationOnly.visibility = View.VISIBLE
         setShownProduct(barcode)
-    }
-
-    override fun onSaveInstanceState(outState: Bundle, outPersistentState: PersistableBundle) {
-        productDisp?.dispose()
-        super.onSaveInstanceState(outState, outPersistentState)
     }
 
     /**
@@ -283,14 +277,14 @@ class ContinuousScanActivity : AppCompatActivity() {
                 }
     }
 
-    private fun quickViewCheckNutriScore(product: Product) = if (isFlavors(AppFlavors.OFF)) {
+    private fun quickViewCheckNutriScore(product: Product) = if (isFlavors(OFF)) {
         binding.quickViewNutriScore.visibility = View.VISIBLE
         binding.quickViewNutriScore.setImageResource(product.getNutriScoreResource())
     } else {
         binding.quickViewNutriScore.visibility = View.GONE
     }
 
-    private fun quickViewCheckNova(product: Product) = if (isFlavors(AppFlavors.OFF)) {
+    private fun quickViewCheckNova(product: Product) = if (isFlavors(OFF)) {
         binding.quickViewNovaGroup.visibility = View.VISIBLE
         binding.quickViewAdditives.visibility = View.VISIBLE
         binding.quickViewNovaGroup.setImageResource(product.getNovaGroupResource())
@@ -317,9 +311,7 @@ class ContinuousScanActivity : AppCompatActivity() {
             override fun showAllergens(allergens: List<AllergenName>) {
                 val data = AllergenHelper.computeUserAllergen(product, allergens)
                 binding.callToActionImageProgress.visibility = View.GONE
-                if (data.isEmpty()) {
-                    return
-                }
+                if (data.isEmpty()) return
                 val iconicsDrawable = IconicsDrawable(this@ContinuousScanActivity, GoogleMaterial.Icon.gmd_warning)
                         .color(IconicsColor.colorInt(ContextCompat.getColor(this@ContinuousScanActivity, R.color.white)))
                         .size(IconicsSize.dp(24))
@@ -390,7 +382,10 @@ class ContinuousScanActivity : AppCompatActivity() {
     }
 
     private fun navigateToProductAddition(productBarcode: String) {
-        navigateToProductAddition(Product().apply { code = productBarcode })
+        navigateToProductAddition(Product().apply {
+            code = productBarcode
+            lang = LocaleHelper.getLanguage(this@ContinuousScanActivity)
+        })
     }
 
     private fun navigateToProductAddition(product: Product?) {
@@ -431,62 +426,6 @@ class ContinuousScanActivity : AppCompatActivity() {
         binding.quickViewTags.visibility = View.GONE
     }
 
-    override fun onDestroy() {
-        summaryProductPresenter?.dispose()
-
-        // Dispose all RxJava disposable
-        productDisp?.dispose()
-        hintBarcodeDisp?.dispose()
-        commonDisp.dispose()
-
-        // Remove bottom sheet callback as it uses binding
-        quickViewBehavior.removeBottomSheetCallback(bottomSheetCallback)
-        _binding = null
-        super.onDestroy()
-    }
-
-    override fun onStart() {
-        super.onStart()
-        EventBus.getDefault().register(this)
-    }
-
-    override fun onStop() {
-        EventBus.getDefault().unregister(this)
-        super.onStop()
-    }
-
-    override fun onPause() {
-        binding.barcodeScanner.pause()
-        super.onPause()
-    }
-
-    override fun onResume() {
-        super.onResume()
-        binding.bottomNavigation.bottomNavigation.selectNavigationItem(R.id.scan_bottom_nav)
-        if (quickViewBehavior.state != BottomSheetBehavior.STATE_EXPANDED) {
-            binding.barcodeScanner.resume()
-        }
-    }
-
-    @Subscribe
-    fun onEventBusProductNeedsRefreshEvent(event: ProductNeedsRefreshEvent) {
-        val lastBarcode = lastBarcode ?: return
-        if (event.barcode == lastBarcode) {
-            runOnUiThread { setShownProduct(lastBarcode) }
-        }
-    }
-
-    override fun onWindowFocusChanged(hasFocus: Boolean) {
-        super.onWindowFocusChanged(hasFocus)
-        //status bar will remain visible if user presses home and then reopens the activity
-        // hence hiding status bar again
-        hideSystemUI()
-    }
-
-    private fun hideSystemUI() {
-        WindowInsetsControllerCompat(window, binding.root).hide(WindowInsetsCompat.Type.statusBars())
-        this.actionBar?.hide()
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         OFFApplication.appComponent.inject(this)
@@ -507,12 +446,10 @@ class ContinuousScanActivity : AppCompatActivity() {
 
         binding.quickViewTags.isNestedScrollingEnabled = false
 
-        window.decorView.setOnSystemUiVisibilityChangeListener { visibility ->
-            if (visibility and View.SYSTEM_UI_FLAG_FULLSCREEN == 0) {
-                // The system bars are visible.
-                hideSystemUI()
-            }
-        }
+
+        // The system bars are visible.
+        hideSystemUI()
+
         hintBarcodeDisp = Completable.timer(15, TimeUnit.SECONDS)
                 .observeOn(AndroidSchedulers.mainThread())
                 .doOnComplete {
@@ -555,6 +492,69 @@ class ContinuousScanActivity : AppCompatActivity() {
         binding.quickViewSearchByBarcode.setOnEditorActionListener(barcodeInputListener)
         binding.bottomNavigation.bottomNavigation.installBottomNavigation(this)
     }
+
+    override fun onStart() {
+        super.onStart()
+        EventBus.getDefault().register(this)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        binding.bottomNavigation.bottomNavigation.selectNavigationItem(R.id.scan_bottom_nav)
+        if (quickViewBehavior.state != BottomSheetBehavior.STATE_EXPANDED) {
+            binding.barcodeScanner.resume()
+        }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        productDisp?.dispose()
+        super.onSaveInstanceState(outState)
+    }
+
+    override fun onPause() {
+        binding.barcodeScanner.pause()
+        super.onPause()
+    }
+
+    override fun onStop() {
+        EventBus.getDefault().unregister(this)
+        super.onStop()
+    }
+
+    override fun onDestroy() {
+        summaryProductPresenter?.dispose()
+
+        // Dispose all RxJava disposable
+        hintBarcodeDisp?.dispose()
+        commonDisp.dispose()
+
+        // Remove bottom sheet callback as it uses binding
+        quickViewBehavior.removeBottomSheetCallback(bottomSheetCallback)
+        _binding = null
+        super.onDestroy()
+    }
+
+
+    @Subscribe
+    fun onEventBusProductNeedsRefreshEvent(event: ProductNeedsRefreshEvent) {
+        val lastBarcode = lastBarcode ?: return
+        if (event.barcode == lastBarcode) {
+            runOnUiThread { setShownProduct(lastBarcode) }
+        }
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        //status bar will remain visible if user presses home and then reopens the activity
+        // hence hiding status bar again
+        hideSystemUI()
+    }
+
+    private fun hideSystemUI() {
+        WindowInsetsControllerCompat(window, binding.root).hide(WindowInsetsCompat.Type.statusBars())
+        this.actionBar?.hide()
+    }
+
 
     private fun setupPopupMenu() {
         popupMenu = PopupMenu(this, binding.buttonMore).also {

@@ -51,11 +51,6 @@ class ProductAttributeFragment : BottomSheetDialogFragment() {
         val view = inflater.inflate(R.layout.fragment_product_attribute_details, container,
                 false)
         val customTabActivityHelper = CustomTabActivityHelper()
-
-        customTabActivityHelper.connectionCallback = object : CustomTabActivityHelper.ConnectionCallback {
-            override fun onCustomTabsConnected() {}
-            override fun onCustomTabsDisconnected() {}
-        }
         customTabsIntent = CustomTabsHelper.getCustomTabsIntent(requireContext(), customTabActivityHelper.session)
         val bottomSheetDescription = view.findViewById<TextView>(R.id.description)
         val bottomSheetTitle = view.findViewById<TextView>(R.id.titleBottomSheet)
@@ -184,7 +179,7 @@ class ProductAttributeFragment : BottomSheetDialogFragment() {
         var descriptionString: String? = null
 
         val languageCode = LocaleHelper.getLanguage(OFFApplication.instance)
-        if (languageCode != null && map[languageCode] != null) {
+        if (map[languageCode] != null) {
             descriptionString = map[languageCode]["value"].asText()
         }
 

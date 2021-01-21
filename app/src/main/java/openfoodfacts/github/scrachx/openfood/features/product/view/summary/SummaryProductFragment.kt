@@ -38,7 +38,6 @@ import com.google.android.material.snackbar.BaseTransientBottomBar
 import com.google.android.material.snackbar.Snackbar
 import com.squareup.picasso.Picasso
 import io.reactivex.android.schedulers.AndroidSchedulers
-import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.rxkotlin.addTo
 import openfoodfacts.github.scrachx.openfood.AppFlavors.OFF
 import openfoodfacts.github.scrachx.openfood.AppFlavors.isFlavors
@@ -54,15 +53,16 @@ import openfoodfacts.github.scrachx.openfood.features.LoginActivity.Companion.Lo
 import openfoodfacts.github.scrachx.openfood.features.additives.AdditiveFragmentHelper.showAdditives
 import openfoodfacts.github.scrachx.openfood.features.compare.ProductCompareActivity.Companion.start
 import openfoodfacts.github.scrachx.openfood.features.product.edit.ProductEditActivity
+import openfoodfacts.github.scrachx.openfood.features.product.edit.ProductEditActivity.Companion.KEY_STATE
 import openfoodfacts.github.scrachx.openfood.features.product.view.CategoryProductHelper
 import openfoodfacts.github.scrachx.openfood.features.product.view.ProductViewActivity
 import openfoodfacts.github.scrachx.openfood.features.product.view.ingredients_analysis.IngredientsWithTagDialogFragment
-import openfoodfacts.github.scrachx.openfood.features.productlist.ProductListActivity
 import openfoodfacts.github.scrachx.openfood.features.productlists.ProductListsActivity
 import openfoodfacts.github.scrachx.openfood.features.productlists.ProductListsActivity.Companion.getProductListsDaoWithDefaultList
 import openfoodfacts.github.scrachx.openfood.features.search.ProductSearchActivity
 import openfoodfacts.github.scrachx.openfood.features.shared.BaseFragment
 import openfoodfacts.github.scrachx.openfood.features.shared.adapters.NutrientLevelListAdapter
+import openfoodfacts.github.scrachx.openfood.features.shared.views.QuestionDialog
 import openfoodfacts.github.scrachx.openfood.images.ProductImage
 import openfoodfacts.github.scrachx.openfood.models.*
 import openfoodfacts.github.scrachx.openfood.models.entities.additive.AdditiveName
@@ -80,8 +80,6 @@ import java.io.File
 class SummaryProductFragment : BaseFragment(), ISummaryProductPresenter.View {
     private var _binding: FragmentSummaryProductBinding? = null
     private val binding get() = _binding!!
-
-    private val disp = CompositeDisposable()
 
     private lateinit var client: OpenFoodAPIClient
     private lateinit var wikidataClient: WikiDataApiClient
@@ -129,6 +127,14 @@ class SummaryProductFragment : BaseFragment(), ISummaryProductPresenter.View {
     /**boolean to determine if nutrient prompt should be shown*/
     private var showNutrientPrompt = false
 
+    /**boolean to determine if eco score prompt should be shown*/
+    private var showEcoScorePrompt = false
+
+    /**boolean to determine if labels prompt should be shown*/
+    private var showLabelsPrompt = false
+
+    /**boolean to determine if origins prompt should be shown*/
+    private var showOriginsPrompt = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -167,23 +173,17 @@ class SummaryProductFragment : BaseFragment(), ISummaryProductPresenter.View {
     override fun onAttach(context: Context) {
         super.onAttach(context)
         customTabActivityHelper = CustomTabActivityHelper().apply {
-            connectionCallback = object : CustomTabActivityHelper.ConnectionCallback {
-                override fun onCustomTabsConnected() {
-                    binding.imageGrade.isClickable = true
-                }
-
-                override fun onCustomTabsDisconnected() {
-                    binding.imageGrade.isClickable = false
-                }
-            }
+            setConnectionCallback(
+                    onConnected = { binding.imageGrade.isClickable = true },
+                    onDisconnected = { binding.imageGrade.isClickable = false }
+            )
         }
         customTabsIntent = CustomTabsHelper.getCustomTabsIntent(requireContext(), customTabActivityHelper.session)
     }
 
     override fun onDestroyView() {
-        disp.dispose()
-        _binding = null
         super.onDestroyView()
+        _binding = null
     }
 
     private fun onImageListenerError(error: Throwable) {
@@ -252,7 +252,7 @@ class SummaryProductFragment : BaseFragment(), ISummaryProductPresenter.View {
         binding.labelsIcon.visibility = View.VISIBLE
 
         // Checks the product states_tags to determine which prompt to be shown
-        refreshNutriScorePrompt()
+        refreshStatesTagsPrompt()
         presenter.loadAllergens(null)
         presenter.loadCategories()
         presenter.loadLabels()
@@ -278,15 +278,12 @@ class SummaryProductFragment : BaseFragment(), ISummaryProductPresenter.View {
         }
 
         //TODO use OpenFoodApiService to fetch product by packaging, brands, categories etc
-        if (product.getProductName(langCode) != null) {
-            binding.textNameProduct.text = product.getProductName(langCode)
-        } else {
-            binding.textNameProduct.visibility = View.GONE
-        }
+        binding.textNameProduct.text = product.getProductName(langCode) ?: getString(R.string.productNameNull)
+
         if (!product.quantity.isNullOrBlank()) {
             binding.textQuantityProduct.text = product.quantity
         } else {
-            binding.textQuantityProduct.visibility = View.GONE
+            binding.textQuantityProduct.visibility = View.INVISIBLE
         }
 
         val pBrands = product.brands
@@ -367,7 +364,7 @@ class SummaryProductFragment : BaseFragment(), ISummaryProductPresenter.View {
                             getString(R.string.txtFat),
                             fatNutriment.displayStringFor100g,
                             fat.getLocalize(requireContext()),
-                            fat.getImageLevel(),
+                            fat.getImgRes(),
                     )
                 }
                 val saturatedFatNutriment = nutriments[Nutriments.SATURATED_FAT]
@@ -377,7 +374,7 @@ class SummaryProductFragment : BaseFragment(), ISummaryProductPresenter.View {
                             getString(R.string.txtSaturatedFat),
                             saturatedFatNutriment.displayStringFor100g,
                             saturatedFatLocalize,
-                            saturatedFat.getImageLevel()
+                            saturatedFat.getImgRes()
                     )
                 }
                 val sugarsNutriment = nutriments[Nutriments.SUGARS]
@@ -386,7 +383,7 @@ class SummaryProductFragment : BaseFragment(), ISummaryProductPresenter.View {
                             getString(R.string.txtSugars),
                             sugarsNutriment.displayStringFor100g,
                             sugars.getLocalize(requireContext()),
-                            sugars.getImageLevel(),
+                            sugars.getImgRes(),
                     )
                 }
                 val saltNutriment = nutriments[Nutriments.SALT]
@@ -396,7 +393,7 @@ class SummaryProductFragment : BaseFragment(), ISummaryProductPresenter.View {
                             getString(R.string.txtSalt),
                             saltNutriment.displayStringFor100g,
                             saltLocalize,
-                            salt.getImageLevel(),
+                            salt.getImgRes(),
                     )
                 }
             } else {
@@ -433,11 +430,14 @@ class SummaryProductFragment : BaseFragment(), ISummaryProductPresenter.View {
     }
 
     private fun refreshNutriScore() {
-        binding.imageGrade.setImageResource(product.getNutriScoreResource())
-        binding.imageGrade.setOnClickListener {
-            val customTabsIntent = CustomTabsHelper.getCustomTabsIntent(requireContext(), customTabActivityHelper.session)
-            CustomTabActivityHelper.openCustomTab(requireActivity(), customTabsIntent, nutritionScoreUri!!, WebViewFallback())
-        }
+        val nutriScoreResource = product.getNutriScoreResource()
+        binding.imageGrade.setImageResource(nutriScoreResource)
+        binding.imageGrade.setOnClickListener(nutritionScoreUri?.let { uri ->
+            {
+                val customTabsIntent = CustomTabsHelper.getCustomTabsIntent(requireContext(), customTabActivityHelper.session)
+                CustomTabActivityHelper.openCustomTab(requireActivity(), customTabsIntent, uri, WebViewFallback())
+            }
+        })
     }
 
     private fun refreshNovaIcon() {
@@ -451,21 +451,36 @@ class SummaryProductFragment : BaseFragment(), ISummaryProductPresenter.View {
 
     private fun refreshCO2OrEcoscoreIcon() {
         binding.ecoscoreIcon.setImageResource(product.getEcoscoreResource())
+        binding.ecoscoreIcon.setOnClickListener {
+            val uri = Uri.parse(getString(R.string.ecoscore_url))
+            val customTabsIntent = CustomTabsHelper.getCustomTabsIntent(requireContext(), customTabActivityHelper.session)
+            CustomTabActivityHelper.openCustomTab(requireActivity(), customTabsIntent, uri, WebViewFallback())
+        }
     }
 
-    private fun refreshNutriScorePrompt() {
+    private fun refreshStatesTagsPrompt() {
         //checks the product states_tags to determine which prompt to be shown
         val statesTags = product.statesTags
         showCategoryPrompt = statesTags.contains("en:categories-to-be-completed") && !hasCategoryInsightQuestion
         showNutrientPrompt = statesTags.contains("en:nutrition-facts-to-be-completed") && product.noNutritionData != "on"
+        showEcoScorePrompt = statesTags.contains("en:categories-completed") && (product.ecoscore.isNullOrEmpty() || product.ecoscore.equals("unknown", true))
+        showLabelsPrompt = statesTags.contains("en:labels-to-be-completed")
+        showOriginsPrompt = statesTags.contains("en:origins-to-be-completed")
 
         Log.d(LOG_TAG, "Show category prompt: $showCategoryPrompt")
         Log.d(LOG_TAG, "Show nutrient prompt: $showNutrientPrompt")
+        Log.d(LOG_TAG, "Show Eco Score prompt: $showEcoScorePrompt")
+        Log.d(LOG_TAG, "Show labels prompt: $showLabelsPrompt")
+        Log.d(LOG_TAG, "Show origins prompt: $showOriginsPrompt")
+
+        if (showEcoScorePrompt) {
+            binding.tipBoxEcoScore.loadToolTip()
+        }
 
         binding.addNutriscorePrompt.visibility = View.VISIBLE
         when {
             showNutrientPrompt && showCategoryPrompt -> {
-                // Both true
+                // showNutrientPrompt and showCategoryPrompt true
                 binding.addNutriscorePrompt.text = getString(R.string.add_nutrient_category_prompt_text)
             }
             showNutrientPrompt -> {
@@ -477,6 +492,23 @@ class SummaryProductFragment : BaseFragment(), ISummaryProductPresenter.View {
                 binding.addNutriscorePrompt.text = getString(R.string.add_category_prompt_text)
             }
             else -> binding.addNutriscorePrompt.visibility = View.GONE
+        }
+
+        binding.addLabelOriginPrompt.visibility = View.VISIBLE
+        when {
+            showLabelsPrompt && showOriginsPrompt -> {
+                // showLabelsPrompt and showOriginsPrompt true
+                binding.addLabelOriginPrompt.text = getString(R.string.add_labels_origins_prompt_text)
+            }
+            showLabelsPrompt -> {
+                // showLabelsPrompt true
+                binding.addLabelOriginPrompt.text = getString(R.string.add_labels_prompt_text)
+            }
+            showOriginsPrompt -> {
+                // showOriginsPrompt true
+                binding.addLabelOriginPrompt.text = getString(R.string.add_origins_prompt_text)
+            }
+            else -> binding.addLabelOriginPrompt.visibility = View.GONE
         }
     }
 
@@ -500,7 +532,7 @@ class SummaryProductFragment : BaseFragment(), ISummaryProductPresenter.View {
         requireActivity().runOnUiThread {
             binding.analysisContainer.visibility = View.VISIBLE
             val adapter = IngredientAnalysisTagsAdapter(requireContext(), analysisTags)
-            adapter.setOnItemClickListener { view: View, _: Int ->
+            adapter.setOnItemClickListener { view, _ ->
                 val fragment = IngredientsWithTagDialogFragment
                         .newInstance(product, view.getTag(R.id.analysis_tag_config) as AnalysisTagConfig)
                 fragment.show(childFragmentManager, "fragment_ingredients_with_tag")
@@ -550,7 +582,7 @@ class SummaryProductFragment : BaseFragment(), ISummaryProductPresenter.View {
         }
 
         if (isFlavors(OFF)) {
-            refreshNutriScorePrompt()
+            refreshStatesTagsPrompt()
             refreshScoresLayout()
         }
     }
@@ -743,7 +775,7 @@ class SummaryProductFragment : BaseFragment(), ISummaryProductPresenter.View {
         val productBarcode = product.code
         val productName = product.productName
         val imageUrl = product.getImageSmallUrl(LocaleHelper.getLanguage(activity))
-        val productDetails = ProductListActivity.getProductBrandsQuantityDetails(product)
+        val productDetails = product.getProductBrandsQuantityDetails()
         val addToListDialog = MaterialDialog.Builder(activity)
                 .title(R.string.add_to_product_lists)
                 .customView(R.layout.dialog_add_to_list, true)
@@ -840,5 +872,11 @@ class SummaryProductFragment : BaseFragment(), ISummaryProductPresenter.View {
         private const val EDIT_PRODUCT_NUTRITION_AFTER_LOGIN = 3
         private const val EDIT_REQUEST_CODE = 2
         private val LOG_TAG = this::class.simpleName!!
+
+        fun newInstance(productState: ProductState) = SummaryProductFragment().apply {
+            arguments = Bundle().apply {
+                putSerializable(KEY_STATE, productState)
+            }
+        }
     }
 }

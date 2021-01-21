@@ -33,7 +33,6 @@ import androidx.browser.customtabs.CustomTabsIntent
 import androidx.viewpager2.widget.ViewPager2
 import com.afollestad.materialdialogs.MaterialDialog
 import com.squareup.picasso.Picasso
-import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.rxkotlin.addTo
 import openfoodfacts.github.scrachx.openfood.AppFlavors
 import openfoodfacts.github.scrachx.openfood.AppFlavors.isFlavors
@@ -47,6 +46,7 @@ import openfoodfacts.github.scrachx.openfood.features.ImagesManageActivity
 import openfoodfacts.github.scrachx.openfood.features.LoginActivity.Companion.LoginContract
 import openfoodfacts.github.scrachx.openfood.features.additives.AdditiveFragmentHelper.showAdditives
 import openfoodfacts.github.scrachx.openfood.features.product.edit.ProductEditActivity
+import openfoodfacts.github.scrachx.openfood.features.product.edit.ProductEditActivity.Companion.KEY_STATE
 import openfoodfacts.github.scrachx.openfood.features.product.edit.ProductEditActivity.EditProductPerformOCR
 import openfoodfacts.github.scrachx.openfood.features.product.edit.ProductEditActivity.EditProductSendUpdatedImg
 import openfoodfacts.github.scrachx.openfood.features.search.ProductSearchActivity.Companion.start
@@ -71,7 +71,6 @@ class IngredientsProductFragment : BaseFragment(), IIngredientsProductPresenter.
     private val loginPref by lazy { requireActivity().getLoginPreferences() }
     private val client by lazy { OpenFoodAPIClient(requireContext()) }
     private val wikidataClient by lazy { WikiDataApiClient() }
-    private val disp by lazy { CompositeDisposable() }
 
     private val performOCRLauncher = registerForActivityResult(EditProductPerformOCR())
     { result -> if (result) onRefresh() }
@@ -95,6 +94,10 @@ class IngredientsProductFragment : BaseFragment(), IIngredientsProductPresenter.
 
     private var sendUpdatedIngredientsImage = false
 
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        productState = requireProductState()
+    }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentIngredientsProductBinding.inflate(inflater)
@@ -111,7 +114,7 @@ class IngredientsProductFragment : BaseFragment(), IIngredientsProductPresenter.
         binding.extractIngredientsPrompt.setOnClickListener { extractIngredients() }
         binding.imageViewIngredients.setOnClickListener { openFullScreen() }
 
-        refreshView(requireProductState())
+        refreshView(productState)
     }
 
     override fun onAttach(context: Context) {
@@ -443,12 +446,16 @@ class IngredientsProductFragment : BaseFragment(), IIngredientsProductPresenter.
     }
 
     override fun onDestroyView() {
-        disp.dispose()
-        _binding = null
         super.onDestroyView()
+        _binding = null
     }
 
     companion object {
         val INGREDIENT_PATTERN: Pattern = Pattern.compile("[\\p{L}\\p{Nd}(),.-]+")
+        fun newInstance(productState: ProductState) = IngredientsProductFragment().apply {
+            arguments = Bundle().apply {
+                putSerializable(KEY_STATE, productState)
+            }
+        }
     }
 }

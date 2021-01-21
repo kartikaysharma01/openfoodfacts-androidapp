@@ -206,8 +206,8 @@ android {
         minSdkVersion(16)
         targetSdkVersion(30)
 
-        versionCode = 360
-        versionName = "3.6.0"
+        versionCode = 431
+        versionName = "3.6.3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
@@ -344,7 +344,7 @@ android {
     }
 }
 
-greendao { schemaVersion(18) }
+greendao { schemaVersion(20) }
 
 
 

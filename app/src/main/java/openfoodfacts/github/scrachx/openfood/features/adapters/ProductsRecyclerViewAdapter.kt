@@ -10,15 +10,16 @@ import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.squareup.picasso.Callback
 import com.squareup.picasso.Picasso
+import openfoodfacts.github.scrachx.openfood.AppFlavors
 import openfoodfacts.github.scrachx.openfood.R
-import openfoodfacts.github.scrachx.openfood.features.productlist.ProductListActivity.Companion.getProductBrandsQuantityDetails
 import openfoodfacts.github.scrachx.openfood.models.Product
-import openfoodfacts.github.scrachx.openfood.network.OpenFoodAPIClient.Companion.localeProductNameField
+import openfoodfacts.github.scrachx.openfood.network.OpenFoodAPIClient.Companion.getLocaleProductNameField
 import openfoodfacts.github.scrachx.openfood.utils.LocaleHelper.getLanguage
 import openfoodfacts.github.scrachx.openfood.utils.Utils.picassoBuilder
 import openfoodfacts.github.scrachx.openfood.utils.getEcoscoreResource
 import openfoodfacts.github.scrachx.openfood.utils.getNovaGroupResource
 import openfoodfacts.github.scrachx.openfood.utils.getNutriScoreResource
+import openfoodfacts.github.scrachx.openfood.utils.getProductBrandsQuantityDetails
 
 /**
  * @author herau & itchix
@@ -72,31 +73,30 @@ class ProductsRecyclerViewAdapter(
 
         // Set product name
         holder.productName.text = product?.productName ?: context.getString(R.string.productNameNull)
-        val productNameInLocale = product?.additionalProperties?.get(localeProductNameField) as String?
+        val productNameInLocale = product?.additionalProperties?.get(getLocaleProductNameField()) as String?
         if (!productNameInLocale.isNullOrBlank()) {
             holder.productName.text = productNameInLocale
         }
 
         // Set product description
-        holder.productDetails.text = product?.let { getProductBrandsQuantityDetails(it) }
+        holder.productDetails.text = product?.getProductBrandsQuantityDetails()
 
-        // Set nutriscore icon
-        val nutriRes = product.getNutriScoreResource()
-        holder.productNutriscore.setImageResource(nutriRes)
-        holder.productNutriscore.visibility = View.VISIBLE
+        if (AppFlavors.isFlavors(AppFlavors.OFF)) {
+            // Set nutriscore icon
+            val nutriRes = product.getNutriScoreResource()
+            holder.productNutriscore.setImageResource(nutriRes)
+            holder.productNutriscore.visibility = View.VISIBLE
 
+            // Set nova icon
+            val novaRes = product.getNovaGroupResource()
+            holder.productNova.setImageResource(novaRes)
+            holder.productNova.visibility = View.VISIBLE
 
-        // Set nova icon
-        val novaRes = product.getNovaGroupResource()
-        holder.productNova.setImageResource(novaRes)
-        holder.productNova.visibility = View.VISIBLE
-
-
-        // Set ecoscore icon
-        val ecoRes = product.getEcoscoreResource()
-        holder.productEcoscore.setImageResource(ecoRes)
-        holder.productEcoscore.visibility = View.VISIBLE
-
+            // Set ecoscore icon
+            val ecoRes = product.getEcoscoreResource()
+            holder.productEcoscore.setImageResource(ecoRes)
+            holder.productEcoscore.visibility = View.VISIBLE
+        }
     }
 
     fun getProduct(position: Int) = products[position]

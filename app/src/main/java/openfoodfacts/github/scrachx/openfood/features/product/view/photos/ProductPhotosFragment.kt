@@ -7,7 +7,6 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.GridLayoutManager
 import io.reactivex.android.schedulers.AndroidSchedulers
-import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.rxkotlin.addTo
 import openfoodfacts.github.scrachx.openfood.BuildConfig
 import openfoodfacts.github.scrachx.openfood.databinding.FragmentProductPhotosBinding
@@ -15,7 +14,6 @@ import openfoodfacts.github.scrachx.openfood.features.FullScreenActivityOpener
 import openfoodfacts.github.scrachx.openfood.features.shared.BaseFragment
 import openfoodfacts.github.scrachx.openfood.images.ImageNameJsonParser
 import openfoodfacts.github.scrachx.openfood.network.OpenFoodAPIClient
-import openfoodfacts.github.scrachx.openfood.utils.isUserSet
 import openfoodfacts.github.scrachx.openfood.utils.requireProductState
 
 /**
@@ -25,8 +23,6 @@ import openfoodfacts.github.scrachx.openfood.utils.requireProductState
 class ProductPhotosFragment : BaseFragment() {
     private var _binding: FragmentProductPhotosBinding? = null
     private val binding get() = _binding!!
-
-    private val disp = CompositeDisposable()
 
     private lateinit var openFoodAPIClient: OpenFoodAPIClient
 
@@ -42,8 +38,7 @@ class ProductPhotosFragment : BaseFragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        val productState = requireProductState()
-        val product = productState.product!!
+        val product = requireProductState().product!!
         openFoodAPIClient.rawAPI
                 .getProductImages(product.code)
                 .observeOn(AndroidSchedulers.mainThread())
@@ -53,7 +48,8 @@ class ProductPhotosFragment : BaseFragment() {
                     val imageNames = ImageNameJsonParser.extractImagesNameSortedByUploadTimeDesc(node!!)
 
                     //Check if user is logged in
-                    val adapter = ProductPhotosAdapter(requireActivity(), product, requireActivity().isUserSet(), imageNames) { position ->
+                    val adapter = ProductPhotosAdapter(requireContext(), product, imageNames, binding.root)
+                    { position ->
                         // Retrieves url of the image clicked to open FullScreenActivity
                         var barcodePattern = product.code
                         if (barcodePattern.length > 8) {
@@ -72,9 +68,8 @@ class ProductPhotosFragment : BaseFragment() {
     }
 
     override fun onDestroyView() {
-        disp.dispose()
-        _binding = null
         super.onDestroyView()
+        _binding = null
     }
 
     /**
@@ -83,9 +78,11 @@ class ProductPhotosFragment : BaseFragment() {
      * @param mUrlImage url of the image in FullScreenImage
      */
     private fun openFullScreen(mUrlImage: String?) {
-        if (mUrlImage != null) {
-            FullScreenActivityOpener.openZoom(requireActivity(), mUrlImage, null)
-        }
+        FullScreenActivityOpener.openZoom(
+                requireActivity(),
+                mUrlImage ?: return,
+                null
+        )
     }
 
     companion object {

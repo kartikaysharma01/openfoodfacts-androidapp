@@ -60,6 +60,7 @@ import com.mikepenz.materialdrawer.holder.StringHolder
 import com.mikepenz.materialdrawer.model.*
 import com.mikepenz.materialdrawer.model.interfaces.IDrawerItem
 import com.mikepenz.materialdrawer.model.interfaces.IProfile
+import io.reactivex.Maybe
 import io.reactivex.Observable
 import io.reactivex.Single
 import io.reactivex.android.schedulers.AndroidSchedulers
@@ -98,7 +99,7 @@ import openfoodfacts.github.scrachx.openfood.network.OpenFoodAPIClient
 import openfoodfacts.github.scrachx.openfood.utils.*
 import openfoodfacts.github.scrachx.openfood.utils.LocaleHelper.getLanguage
 import openfoodfacts.github.scrachx.openfood.utils.LocaleHelper.onCreate
-import openfoodfacts.github.scrachx.openfood.utils.LocaleHelper.setLocale
+import openfoodfacts.github.scrachx.openfood.utils.LocaleHelper.setLanguageInPrefs
 import openfoodfacts.github.scrachx.openfood.utils.NavigationDrawerListener.*
 import openfoodfacts.github.scrachx.openfood.utils.NavigationDrawerListener.Companion.ITEM_ABOUT
 import openfoodfacts.github.scrachx.openfood.utils.NavigationDrawerListener.Companion.ITEM_ADDITIVES
@@ -135,12 +136,9 @@ class MainActivity : BaseActivity(), NavigationDrawerListener {
 
     private val disp = CompositeDisposable()
 
-    private var barcode: String? = null
-
     private val contributeUri: Uri by lazy { Uri.parse(getString(R.string.website_contribute)) }
     private val discoverUri: Uri by lazy { Uri.parse(getString(R.string.website_discover)) }
-    private val userContributeUri: Uri
-        get() = Uri.parse(getString(R.string.website_contributor) + getUserLogin())
+    private fun getUserContributeUri(): Uri = Uri.parse(getString(R.string.website_contributor) + getUserLogin())
 
     /**
      * Used to re-create the fragment after activity recreation
@@ -152,7 +150,7 @@ class MainActivity : BaseActivity(), NavigationDrawerListener {
     private lateinit var prefManager: PrefManager
 
     private var searchMenuItem: MenuItem? = null
-    private var userAccountUri: Uri? = null
+    private var userSettingsURI: Uri? = null
 
     private val loginThenUpdate = registerForActivityResult(LoginContract())
     { isLoggedIn -> if (isLoggedIn) updateConnectedState() }
@@ -168,8 +166,7 @@ class MainActivity : BaseActivity(), NavigationDrawerListener {
         setContentView(binding.root)
 
         hideKeyboard(this)
-        val profile = getUserProfile()
-        setLocale(this, getLanguage(this))
+        setLanguageInPrefs(this, getLanguage(this))
         setSupportActionBar(binding.toolbarInclude.toolbar)
         supportActionBar?.setDisplayHomeAsUpEnabled(false)
         swapToHomeFragment()
@@ -183,6 +180,7 @@ class MainActivity : BaseActivity(), NavigationDrawerListener {
         customTabsIntent = CustomTabsHelper.getCustomTabsIntent(this, customTabActivityHelper.session)
 
         // Create the AccountHeader
+        val profile = getUserProfile()
         var accountHeaderBuilder = AccountHeaderBuilder()
                 .withActivity(this)
                 .withTranslucentStatusBar(true)
@@ -206,10 +204,12 @@ class MainActivity : BaseActivity(), NavigationDrawerListener {
                 .withOnAccountHeaderListener(object : AccountHeader.OnAccountHeaderListener {
                     override fun onProfileChanged(view: View?, profile: IProfile<*>, current: Boolean): Boolean {
                         if (profile is IDrawerItem<*> && profile.identifier == ITEM_MANAGE_ACCOUNT.toLong()) {
-                            CustomTabActivityHelper.openCustomTab(this@MainActivity,
+                            CustomTabActivityHelper.openCustomTab(
+                                    this@MainActivity,
                                     customTabsIntent,
-                                    userAccountUri!!,
-                                    WebViewFallback())
+                                    userSettingsURI!!,
+                                    WebViewFallback()
+                            )
                         }
                         return false
                     }
@@ -233,14 +233,9 @@ class MainActivity : BaseActivity(), NavigationDrawerListener {
                 .withHasStableIds(true)
                 .withAccountHeader(headerResult) //set the AccountHeader we created earlier for the header
                 .withOnDrawerListener(object : Drawer.OnDrawerListener {
-                    override fun onDrawerOpened(drawerView: View) {
-                        hideKeyboard(this@MainActivity)
-                    }
-
-                    override fun onDrawerClosed(drawerView: View) {}
-                    override fun onDrawerSlide(drawerView: View, slideOffset: Float) {
-                        hideKeyboard(this@MainActivity)
-                    }
+                    override fun onDrawerSlide(drawerView: View, slideOffset: Float) = hideKeyboard(this@MainActivity)
+                    override fun onDrawerOpened(drawerView: View) = hideKeyboard(this@MainActivity)
+                    override fun onDrawerClosed(drawerView: View) = Unit
                 })
                 .addDrawerItems(
                         PrimaryDrawerItem().withName(R.string.home_drawer).withIcon(GoogleMaterial.Icon.gmd_home).withIdentifier(ITEM_HOME.toLong()),
@@ -338,9 +333,9 @@ class MainActivity : BaseActivity(), NavigationDrawerListener {
                             }
 
                         }
-                        if (newFragment != null) {
+                        newFragment?.let {
                             supportFragmentManager.commit {
-                                replace(R.id.fragment_container, newFragment)
+                                replace(R.id.fragment_container, it)
                                 addToBackStack(null)
                             }
                         }
@@ -405,7 +400,7 @@ class MainActivity : BaseActivity(), NavigationDrawerListener {
 
         customTabActivityHelper.mayLaunchUrl(discoverUri, null, null)
 
-        customTabActivityHelper.mayLaunchUrl(userContributeUri, null, null)
+        customTabActivityHelper.mayLaunchUrl(getUserContributeUri(), null, null)
 
         when (intent.action) {
             CONTRIBUTIONS_SHORTCUT -> openMyContributions()
@@ -495,8 +490,8 @@ class MainActivity : BaseActivity(), NavigationDrawerListener {
     private fun getProfileSettingDrawerItem(): IProfile<ProfileSettingDrawerItem> {
         val userLogin = getUserLogin()
         val userSession = getUserSession()
-        userAccountUri = Uri.parse("${getString(R.string.website)}cgi/user.pl?type=edit&userid=$userLogin&user_id=$userLogin&user_session=$userSession")
-        customTabActivityHelper.mayLaunchUrl(userAccountUri, null, null)
+        userSettingsURI = Uri.parse("${getString(R.string.website)}cgi/user.pl?type=edit&userid=$userLogin&user_id=$userLogin&user_session=$userSession")
+        customTabActivityHelper.mayLaunchUrl(userSettingsURI, null, null)
         return ProfileSettingDrawerItem().apply {
             withName(getString(R.string.action_manage_account))
             withIcon(GoogleMaterial.Icon.gmd_settings)
@@ -713,7 +708,7 @@ class MainActivity : BaseActivity(), NavigationDrawerListener {
      * This moves the main activity to the barcode entry fragment.
      */
     private fun swapToSearchByCode() =
-            changeFragment(SearchByCodeFragment(), resources.getString(R.string.search_by_barcode_drawer), ITEM_SEARCH_BY_CODE.toLong())
+            changeFragment(SearchByCodeFragment(), ITEM_SEARCH_BY_CODE.toLong(), resources.getString(R.string.search_by_barcode_drawer))
 
     override fun setItemSelected(@NavigationDrawerType type: Int) = drawerResult.setSelection(type.toLong(), false)
 
@@ -748,9 +743,9 @@ class MainActivity : BaseActivity(), NavigationDrawerListener {
     }
 
     private fun chooseDialog(selectedImagesArray: List<Uri>) {
-        detectBarcodeInImages(selectedImagesArray).observeOn(AndroidSchedulers.mainThread()).subscribe { isBarCodePresent: Boolean ->
-            if (isBarCodePresent) {
-                createAlertDialog(false, barcode!!, selectedImagesArray)
+        detectBarcodeInImages(selectedImagesArray).observeOn(AndroidSchedulers.mainThread()).subscribe { barcodes ->
+            if (barcodes.isNotEmpty()) {
+                createAlertDialog(false, barcodes.first(), selectedImagesArray)
             } else {
                 createAlertDialog(true, "", selectedImagesArray)
             }
@@ -762,8 +757,8 @@ class MainActivity : BaseActivity(), NavigationDrawerListener {
      *
      * @param selectedImages
      */
-    private fun detectBarcodeInImages(selectedImages: List<Uri>): Single<Boolean> {
-        return Observable.fromIterable(selectedImages).map { uri: Uri ->
+    private fun detectBarcodeInImages(selectedImages: List<Uri>): Single<MutableList<String>> {
+        return Observable.fromIterable(selectedImages).flatMapMaybe { uri ->
             var bMap: Bitmap? = null
             try {
                 contentResolver.openInputStream(uri).use { bMap = BitmapFactory.decodeStream(it) }
@@ -772,7 +767,7 @@ class MainActivity : BaseActivity(), NavigationDrawerListener {
             } catch (e: IOException) {
                 Log.e(MainActivity::class.java.simpleName, "IO error during bitmap stream decoding: " + e.message, e)
             }
-            //decoding bitmap
+            // Decoding bitmap
             if (bMap != null) {
                 val intArray = IntArray(bMap!!.width * bMap!!.height)
                 bMap!!.getPixels(intArray, 0, bMap!!.width, 0, 0, bMap!!.width, bMap!!.height)
@@ -785,20 +780,17 @@ class MainActivity : BaseActivity(), NavigationDrawerListener {
                     decodeHints[DecodeHintType.PURE_BARCODE] = java.lang.Boolean.TRUE
                     val decodedResult = reader.decode(bitmap, decodeHints)
                     if (decodedResult != null) {
-                        barcode = decodedResult.text
-                    }
-                    if (barcode != null) {
-                        return@map true
+                        return@flatMapMaybe Maybe.just(decodedResult.text)
                     }
                 } catch (e: FormatException) {
-                    Toast.makeText(applicationContext, getString(R.string.format_error), Toast.LENGTH_SHORT).show()
-                    Log.e(MainActivity::class.java.simpleName, "Error decoding bitmap into barcode: " + e.message)
+                    Toast.makeText(this@MainActivity, getString(R.string.format_error), Toast.LENGTH_SHORT).show()
+                    Log.e(MainActivity::class.simpleName, "Error decoding bitmap into barcode: ${e.message}")
                 } catch (e: Exception) {
-                    Log.e(MainActivity::class.java.simpleName, "Error decoding bitmap into barcode: " + e.message)
+                    Log.e(MainActivity::class.simpleName, "Error decoding bitmap into barcode: ${e.message}")
                 }
             }
-            false
-        }.filter { it }.first(false).subscribeOn(Schedulers.computation())
+            return@flatMapMaybe Maybe.empty()
+        }.toList().subscribeOn(Schedulers.computation())
     }
 
     private fun createAlertDialog(hasEditText: Boolean, barcode: String, imgUris: List<Uri>) {
@@ -823,33 +815,34 @@ class MainActivity : BaseActivity(), NavigationDrawerListener {
         }
 
         // set dialog message
-        alertDialogBuilder
-                .setCancelable(false)
-                .setPositiveButton(R.string.txtYes) { dialog, _ ->
-                    for (selected in imgUris) {
-                        val api = OpenFoodAPIClient(this@MainActivity)
-                        var image: ProductImage
-                        val cm = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
-                        val activeNetwork = cm.activeNetworkInfo
-                        val tempBarcode = if (hasEditText) barcodeEditText.text.toString() else barcode
-                        if (tempBarcode.isNotEmpty()) {
-                            dialog.cancel()
-                            if (activeNetwork != null && activeNetwork.isConnectedOrConnecting) {
-                                val imageFile = File(RealPathUtil.getRealPath(this@MainActivity, selected))
-                                image = ProductImage(tempBarcode, ProductImageField.OTHER, imageFile)
-                                api.postImg(image).subscribe().addTo(disp)
-                            } else {
-                                val state = ProductState().apply { product = Product().apply { code = tempBarcode } }
-                                ProductEditActivity.start(this, state)
-                            }
+        alertDialogBuilder.run {
+            setCancelable(false)
+            setPositiveButton(R.string.txtYes) { dialog, _ ->
+                val api = OpenFoodAPIClient(this@MainActivity)
+                imgUris.forEach { selected ->
+                    val cm = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
+                    val activeNetwork = cm.activeNetworkInfo
+                    val tempBarcode = if (hasEditText) barcodeEditText.text.toString() else barcode
+                    if (tempBarcode.isNotEmpty()) {
+                        dialog.dismiss()
+                        if (activeNetwork != null && activeNetwork.isConnectedOrConnecting) {
+                            val imageFile = File(RealPathUtil.getRealPath(this@MainActivity, selected))
+                            val image = ProductImage(tempBarcode, ProductImageField.OTHER, imageFile)
+                            api.postImg(image).subscribe().addTo(disp)
                         } else {
-                            Toast.makeText(this@MainActivity, getString(R.string.sorry_msg), Toast.LENGTH_LONG).show()
+                            val state = ProductState().apply { product = Product().apply { code = tempBarcode } }
+                            ProductEditActivity.start(this@MainActivity, state)
                         }
+                    } else {
+                        Toast.makeText(this@MainActivity, getString(R.string.sorry_msg), Toast.LENGTH_LONG).show()
                     }
                 }
-                .setNegativeButton(R.string.txtNo) { dialog, _ -> dialog.cancel() }
-                .create()
-                .show()
+            }
+            setNegativeButton(R.string.txtNo) { dialog, _ -> dialog.cancel() }
+            create()
+            show()
+        }
+
     }
 
     /**
@@ -864,7 +857,7 @@ class MainActivity : BaseActivity(), NavigationDrawerListener {
      *
      * @since 06/16/18
      */
-    private fun changeFragment(fragment: Fragment, title: String?, drawerName: Long) {
+    private fun changeFragment(fragment: Fragment, drawerName: Long, title: String? = null) {
         changeFragment(fragment, title)
         drawerResult.setSelection(drawerName)
     }
@@ -882,11 +875,10 @@ class MainActivity : BaseActivity(), NavigationDrawerListener {
      */
     @JvmOverloads
     fun changeFragment(fragment: Fragment, title: String? = null) {
-        val backStateName = fragment.javaClass.name
-        val manager = supportFragmentManager
-        val fragmentPopped = manager.popBackStackImmediate(backStateName, 0)
-        if (!fragmentPopped && manager.findFragmentByTag(backStateName) == null) {
-            manager.commit {
+        val backStateName = fragment::class.simpleName
+        val fragmentPopped = supportFragmentManager.popBackStackImmediate(backStateName, 0)
+        if (!fragmentPopped && supportFragmentManager.findFragmentByTag(backStateName) == null) {
+            supportFragmentManager.commit {
                 replace(R.id.fragment_container, fragment, backStateName)
                 addToBackStack(backStateName)
             }

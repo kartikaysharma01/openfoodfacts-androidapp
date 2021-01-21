@@ -25,12 +25,12 @@ import openfoodfacts.github.scrachx.openfood.AppFlavors.OFF
 import openfoodfacts.github.scrachx.openfood.AppFlavors.OPF
 import openfoodfacts.github.scrachx.openfood.AppFlavors.OPFF
 import openfoodfacts.github.scrachx.openfood.BuildConfig
+import openfoodfacts.github.scrachx.openfood.app.AnalyticsService.init
 import openfoodfacts.github.scrachx.openfood.dagger.component.AppComponent
 import openfoodfacts.github.scrachx.openfood.dagger.component.AppComponent.Initializer.init
 import openfoodfacts.github.scrachx.openfood.dagger.module.AppModule
 import openfoodfacts.github.scrachx.openfood.models.DaoMaster
 import openfoodfacts.github.scrachx.openfood.models.DaoSession
-import openfoodfacts.github.scrachx.openfood.utils.AnalyticsService.init
 import openfoodfacts.github.scrachx.openfood.utils.OFFDatabaseHelper
 import org.greenrobot.greendao.query.QueryBuilder
 import java.io.IOException
@@ -63,7 +63,6 @@ class OFFApplication : MultiDexApplication() {
                 is UndeliverableException ->
                     Log.w(LOG_TAG, "Undeliverable exception received, not sure what to do", it.cause)
                 is IOException -> {
-
                     // fine, irrelevant network problem or API that throws on cancellation
                     Log.i(LOG_TAG, "network exception", it)
                     return@setErrorHandler
@@ -74,7 +73,7 @@ class OFFApplication : MultiDexApplication() {
                 }
                 is NullPointerException, is IllegalArgumentException, is IllegalStateException -> {
                     // that's likely a bug in the application
-                    Thread.currentThread().uncaughtExceptionHandler
+                    Thread.currentThread().uncaughtExceptionHandler!!
                             .uncaughtException(Thread.currentThread(), it)
                     return@setErrorHandler
                 }
@@ -84,7 +83,7 @@ class OFFApplication : MultiDexApplication() {
 
     companion object {
         private const val DEBUG = false
-        val LOG_TAG: String = OFFApplication::class.simpleName!!
+        val LOG_TAG = OFFApplication::class.simpleName!!
 
         @JvmStatic
         lateinit var daoSession: DaoSession

@@ -10,13 +10,13 @@ import openfoodfacts.github.scrachx.openfood.models.entities.attribute.Attribute
 import openfoodfacts.github.scrachx.openfood.network.ApiFields
 import openfoodfacts.github.scrachx.openfood.network.ApiFields.Keys.lcProductNameKey
 import openfoodfacts.github.scrachx.openfood.utils.LocaleHelper.getLanguage
-import openfoodfacts.github.scrachx.openfood.utils.LocaleHelper.getLocale
-import openfoodfacts.github.scrachx.openfood.utils.ProductStringConverter
+import openfoodfacts.github.scrachx.openfood.utils.LocaleHelper.getLocaleFromContext
 import org.apache.commons.lang3.builder.ToStringBuilder
 import org.apache.commons.lang3.builder.ToStringStyle
 import java.io.Serializable
 import java.util.*
 import kotlin.collections.ArrayList
+import kotlin.collections.HashMap
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -34,7 +34,7 @@ class Product : Serializable {
      * @return The additivesTags
      */
     @JsonProperty(ApiFields.Keys.ADDITIVES_TAGS)
-    val additivesTags: ArrayList<String> = arrayListOf()
+    val additivesTags = arrayListOf<String>()
 
     /**
      * @return The allergens
@@ -45,16 +45,16 @@ class Product : Serializable {
      * @return The allergensHierarchy
      */
     @JsonProperty(ApiFields.Keys.ALLERGENS_HIERARCHY)
-    val allergensHierarchy: ArrayList<String> = arrayListOf()
+    val allergensHierarchy = arrayListOf<String>()
 
     @JsonProperty(ApiFields.Keys.ALLERGENS_TAGS)
-    val allergensTags: List<String> = ArrayList()
+    val allergensTags = arrayListOf<String>()
 
     /**
      * @return The aminoAcidTags
      */
     @JsonProperty(ApiFields.Keys.AMINO_ACIDS_TAGS)
-    var aminoAcidTags: ArrayList<String> = arrayListOf()
+    var aminoAcidTags = arrayListOf<String>()
 
 
     /**
@@ -66,7 +66,7 @@ class Product : Serializable {
      * @return The brandsTags
      */
     @JsonProperty(ApiFields.Keys.BRANDS_TAGS)
-    val brandsTags: ArrayList<String> = arrayListOf()
+    val brandsTags = arrayListOf<String>()
 
     /**
      * @return The categoriesTags
@@ -113,13 +113,13 @@ class Product : Serializable {
     val ecoscore: String? = null
 
     @JsonProperty(ApiFields.Keys.EDITORS_TAGS)
-    val editors: List<String> = ArrayList()
+    val editors = ArrayList<String>()
 
     /**
      * @return The Emb_codes
      */
     @JsonProperty(ApiFields.Keys.EMB_CODES_TAGS)
-    val embTags: List<Any> = ArrayList()
+    val embTags = ArrayList<Any>()
 
     @JsonProperty(ApiFields.Keys.ENVIRONMENT_IMPACT_LEVEL_TAGS)
     val environmentImpactLevelTags: List<String>? = null
@@ -171,10 +171,10 @@ class Product : Serializable {
     var imageUrl: String? = null
 
     @JsonProperty(ApiFields.Keys.INGREDIENTS)
-    val ingredients: ArrayList<LinkedHashMap<String, String>> = arrayListOf()
+    val ingredients = arrayListOf<Map<String, Any>>()
 
     @JsonProperty(ApiFields.Keys.INGREDIENTS_ANALYSIS_TAGS)
-    val ingredientsAnalysisTags: ArrayList<String> = arrayListOf()
+    val ingredientsAnalysisTags = arrayListOf<String>()
 
     /**
      * @return The ingredientsFromOrThatMayBeFromPalmOilN
@@ -199,7 +199,7 @@ class Product : Serializable {
      * @return The ingredientsThatMayBeFromPalmOilTags
      */
     @JsonProperty(ApiFields.Keys.INGREDIENTS_MAY_PALM_OIL_TAGS)
-    val ingredientsThatMayBeFromPalmOilTags: ArrayList<String> = arrayListOf()
+    val ingredientsThatMayBeFromPalmOilTags = arrayListOf<String>()
 
     /**
      * @return The labels hierarchy
@@ -214,7 +214,7 @@ class Product : Serializable {
     val labelsTags: List<String>? = null
 
     @JsonProperty(ApiFields.Keys.LANG)
-    val lang: String? = null
+    var lang: String = Locale.getDefault().language
 
     @JsonProperty(ApiFields.Keys.LAST_MODIFIED_BY)
     val lastModifiedBy: String? = null
@@ -238,7 +238,7 @@ class Product : Serializable {
      * @return The mineralsTags
      */
     @JsonProperty(ApiFields.Keys.MINERALS_TAGS)
-    var mineralTags: ArrayList<String> = arrayListOf()
+    var mineralTags = arrayListOf<String>()
 
     @JsonProperty(ApiFields.Keys.NO_NUTRITION_DATA)
     val noNutritionData: String? = null
@@ -283,7 +283,8 @@ class Product : Serializable {
      * @return The otherNutritionTags
      */
     @JsonProperty(ApiFields.Keys.OTHER_NUTRITIONAL_SUBSTANCES_TAGS)
-    var otherNutritionTags: ArrayList<String> = arrayListOf()
+    var otherNutritionTags = arrayListOf<String>()
+
     val packaging: String? = null
         get() = field?.replace(",", ", ")
 
@@ -327,7 +328,7 @@ class Product : Serializable {
      * @return The statesTags
      */
     @JsonProperty(ApiFields.Keys.STATES_TAGS)
-    val statesTags: List<String> = arrayListOf()
+    val statesTags = arrayListOf<String>()
 
     val stores: String? = null
         get() = field?.replace(",", ", ")
@@ -352,7 +353,7 @@ class Product : Serializable {
      * @return The vitaminTags
      */
     @JsonProperty(ApiFields.Keys.VITAMINS_TAGS)
-    var vitaminTags: ArrayList<String> = arrayListOf()
+    var vitaminTags = arrayListOf<String>()
 
     @JsonProperty(ApiFields.Keys.WARNING)
     val warning: String? = null
@@ -382,37 +383,27 @@ class Product : Serializable {
         return if (!result.isNullOrBlank()) result else imageNutritionUrl
     }
 
-    private fun getFieldForLanguage(field: String, languageCode: String): String? {
-        // First try the passed language
-        return if (ApiFields.Defaults.DEFAULT_LANGUAGE != languageCode
-                && additionalProperties["${field}_$languageCode"] != null
-                && additionalProperties["${field}_$languageCode"].toString().isNotBlank()) {
-            additionalProperties["${field}_$languageCode"]
-                    .toString()
-                    .replace("\\'", "'")
-                    .replace("&quot", "'")
-        } else if (additionalProperties["${field}_en"] != null
-                && additionalProperties["${field}_en"].toString().isNotBlank()) { // Then try english
-            additionalProperties["${field}_en"]
-                    .toString()
-                    .replace("\\'", "'")
-                    .replace("&quot", "'")
-        } else {
-            null
-        }
-    }
+    private fun getFieldForLanguage(field: String, languageCode: String) =
+            additionalProperties["${field}_$languageCode"] // First try the passed language
+                    ?.toString()
+                    ?.ifBlank { null }
+                    ?.replace("\\'", "'")
+                    ?.replace("&quot", "'")
+                    ?: additionalProperties["${field}_${ApiFields.Defaults.DEFAULT_LANGUAGE}"] // Then try english
+                            ?.toString()
+                            ?.ifBlank { null }
+                            ?.replace("\\'", "'")
+                            ?.replace("&quot", "'")
 
-    fun getImageSmallUrl(languageCode: String?): String? {
-        val image = getSelectedImage(languageCode, ProductImageField.FRONT, ImageSize.SMALL)
-        return if (!image.isNullOrBlank()) {
-            image
-        } else imageSmallUrl
-    }
+
+    fun getImageSmallUrl(languageCode: String?) =
+            getSelectedImage(languageCode, ProductImageField.FRONT, ImageSize.SMALL)
+                    ?.ifBlank { null } ?: imageSmallUrl
 
     fun getSelectedImage(languageCode: String?, type: ProductImageField, size: ImageSize): String? {
         var images = additionalProperties[ApiFields.Keys.SELECTED_IMAGES] as Map<String?, Map<*, *>>?
         if (images != null) {
-            images = images[type.name.toLowerCase(Locale.ROOT)] as Map<String?, Map<*, *>>?
+            images = images[type.toString()] as Map<String?, Map<*, *>>?
             if (images != null) {
                 val imagesByLocale = images[size.name.toLowerCase(Locale.ROOT)] as Map<String?, String>?
                 if (imagesByLocale != null) {
@@ -490,7 +481,7 @@ class Product : Serializable {
         return jacksonObjectMapper().convertValue(attributeGroups)
     }
 
-    fun getLocalAttributeGroups(context: Context) = getAttributeGroups(getLocale(context))
+    fun getLocalAttributeGroups(context: Context) = getAttributeGroups(getLocaleFromContext(context))
 
     override fun toString() = ToStringBuilder(this, ToStringStyle.SHORT_PREFIX_STYLE)
             .append("code", code)

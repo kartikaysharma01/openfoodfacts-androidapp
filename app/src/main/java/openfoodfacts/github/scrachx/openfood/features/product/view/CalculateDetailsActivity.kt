@@ -19,24 +19,23 @@ import java.util.*
 import kotlin.properties.Delegates
 
 class CalculateDetailsActivity : BaseActivity() {
-    private lateinit var nutriments: Nutriments
-    private lateinit var nutrimentListItems: MutableList<NutrimentListItem>
-    private lateinit var product: Product
-    private lateinit var spinnerValue: String
-    private var weight by Delegates.notNull<Float>()
-
+    private val nutrimentListItems = mutableListOf<NutrimentListItem>()
     private val nutriMap = hashMapOf(
             Nutriments.SALT to R.string.nutrition_salt,
             Nutriments.SODIUM to R.string.nutrition_sodium,
             Nutriments.ALCOHOL to R.string.nutrition_alcohol
     )
+    private lateinit var nutriments: Nutriments
+    private lateinit var product: Product
+    private lateinit var spinnerValue: String
+
+    private var weight by Delegates.notNull<Float>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (resources.getBoolean(R.bool.portrait_only)) {
             requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         }
-
         val binding = CalculateDetailsBinding.inflate(layoutInflater)
 
         setContentView(binding.root)
@@ -59,7 +58,6 @@ class CalculateDetailsActivity : BaseActivity() {
         this.spinnerValue = spinnerValue
         this.weight = weight
         this.nutriments = product.nutriments
-        this.nutrimentListItems = arrayListOf()
 
         binding.resultTextView.text = getString(R.string.display_fact, "$weight $spinnerValue")
         binding.nutrimentsRecyclerViewCalc.setHasFixedSize(true)
@@ -79,40 +77,48 @@ class CalculateDetailsActivity : BaseActivity() {
         // Energy
         val energyKcal = nutriments[Nutriments.ENERGY_KCAL]
         if (energyKcal != null) {
-            nutrimentListItems.add(NutrimentListItem(getString(R.string.nutrition_energy_short_name),
+            nutrimentListItems += NutrimentListItem(
+                    getString(R.string.nutrition_energy_short_name),
                     calculateCalories(weight, spinnerValue).toString(),
                     energyKcal.forServingInUnits,
                     Units.ENERGY_KCAL,
-                    nutriments.getModifierIfNotDefault(Nutriments.ENERGY_KCAL)))
+                    energyKcal.getModifierIfNotDefault(),
+            )
         }
         val energyKj = nutriments[Nutriments.ENERGY_KJ]
         if (energyKj != null) {
-            nutrimentListItems.add(NutrimentListItem(getString(R.string.nutrition_energy_short_name),
+            nutrimentListItems += NutrimentListItem(
+                    getString(R.string.nutrition_energy_short_name),
                     calculateKj(weight, spinnerValue).toString(),
                     energyKj.forServingInUnits,
                     Units.ENERGY_KJ.toLowerCase(Locale.getDefault()),
-                    nutriments.getModifierIfNotDefault(Nutriments.ENERGY_KJ)))
+                    energyKj.getModifierIfNotDefault(),
+            )
         }
 
         // Fat
         val fat = nutriments[Nutriments.FAT]
         if (fat != null) {
-            nutrimentListItems.add(BoldNutrimentListItem(getString(R.string.nutrition_fat),
-                    fat.getForAnyValue(weight, spinnerValue),
+            nutrimentListItems += BoldNutrimentListItem(
+                    getString(R.string.nutrition_fat),
+                    fat.getForPortion(weight, spinnerValue),
                     fat.forServingInUnits,
                     fat.unit,
-                    nutriments.getModifierIfNotDefault(Nutriments.FAT)))
+                    fat.getModifierIfNotDefault()
+            )
             nutrimentListItems.addAll(getNutrimentItems(nutriments, Nutriments.FAT_MAP))
         }
 
         // Carbohydrates
         val carbohydrates = nutriments[Nutriments.CARBOHYDRATES]
         if (carbohydrates != null) {
-            nutrimentListItems.add(BoldNutrimentListItem(getString(R.string.nutrition_carbohydrate),
-                    carbohydrates.getForAnyValue(weight, spinnerValue),
+            nutrimentListItems += BoldNutrimentListItem(
+                    getString(R.string.nutrition_carbohydrate),
+                    carbohydrates.getForPortion(weight, spinnerValue),
                     carbohydrates.forServingInUnits,
                     carbohydrates.unit,
-                    nutriments.getModifierIfNotDefault(Nutriments.CARBOHYDRATES)))
+                    carbohydrates.getModifierIfNotDefault()
+            )
             nutrimentListItems.addAll(getNutrimentItems(nutriments, Nutriments.CARBO_MAP))
         }
 
@@ -122,12 +128,13 @@ class CalculateDetailsActivity : BaseActivity() {
         // Proteins
         val proteins = nutriments[Nutriments.PROTEINS]
         if (proteins != null) {
-            val modifier = nutriments.getModifier(Nutriments.PROTEINS)
-            nutrimentListItems.add(BoldNutrimentListItem(getString(R.string.nutrition_proteins),
-                    proteins.getForAnyValue(weight, spinnerValue),
+            nutrimentListItems += BoldNutrimentListItem(
+                    getString(R.string.nutrition_proteins),
+                    proteins.getForPortion(weight, spinnerValue),
                     proteins.forServingInUnits,
                     proteins.unit,
-                    nutriments.getModifierIfNotDefault(Nutriments.PROTEINS)))
+                    proteins.getModifierIfNotDefault()
+            )
             nutrimentListItems.addAll(getNutrimentItems(nutriments, Nutriments.PROT_MAP))
         }
 
@@ -135,15 +142,15 @@ class CalculateDetailsActivity : BaseActivity() {
         nutrimentListItems.addAll(getNutrimentItems(nutriments, nutriMap))
 
         // Vitamins
-        if (nutriments.hasVitamins()) {
-            nutrimentListItems.add(BoldNutrimentListItem(getString(R.string.nutrition_vitamins)))
-            nutrimentListItems.addAll(getNutrimentItems(nutriments, Nutriments.VITAMINS_MAP))
+        if (nutriments.hasVitamins) {
+            nutrimentListItems += BoldNutrimentListItem(getString(R.string.nutrition_vitamins))
+            nutrimentListItems += getNutrimentItems(nutriments, Nutriments.VITAMINS_MAP)
         }
 
         // Minerals
-        if (nutriments.hasMinerals()) {
-            nutrimentListItems.add(BoldNutrimentListItem(getString(R.string.nutrition_minerals)))
-            nutrimentListItems.addAll(getNutrimentItems(nutriments, Nutriments.MINERALS_MAP))
+        if (nutriments.hasMinerals) {
+            nutrimentListItems += BoldNutrimentListItem(getString(R.string.nutrition_minerals))
+            nutrimentListItems += getNutrimentItems(nutriments, Nutriments.MINERALS_MAP)
         }
         binding.nutrimentsRecyclerViewCalc.adapter = CalculatedNutrimentsGridAdapter(nutrimentListItems)
     }
@@ -154,10 +161,10 @@ class CalculateDetailsActivity : BaseActivity() {
             if (nutriment != null) {
                 NutrimentListItem(
                         getString(value),
-                        nutriment.getForAnyValue(weight, spinnerValue),
+                        nutriment.getForPortion(weight, spinnerValue),
                         nutriment.forServingInUnits,
                         nutriment.unit,
-                        nutriments.getModifierIfNotDefault(key)
+                        nutriment.getModifierIfNotDefault()
                 )
             } else null
         }

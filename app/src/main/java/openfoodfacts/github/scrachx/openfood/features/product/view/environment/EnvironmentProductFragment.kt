@@ -8,7 +8,6 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.core.text.HtmlCompat
 import com.squareup.picasso.Picasso
-import io.reactivex.disposables.CompositeDisposable
 import openfoodfacts.github.scrachx.openfood.R
 import openfoodfacts.github.scrachx.openfood.databinding.FragmentEnvironmentProductBinding
 import openfoodfacts.github.scrachx.openfood.features.FullScreenActivityOpener
@@ -29,7 +28,6 @@ class EnvironmentProductFragment : BaseFragment() {
     private val api: OpenFoodAPIClient by lazy { OpenFoodAPIClient(requireActivity()) }
     private var _binding: FragmentEnvironmentProductBinding? = null
     private val binding get() = _binding!!
-    private val disp = CompositeDisposable()
 
     /**
      * boolean to determine if image should be loaded or not
@@ -91,6 +89,15 @@ class EnvironmentProductFragment : BaseFragment() {
             binding.environmentInfoCv.visibility = View.GONE
         }
 
+        val packaging = product.packaging
+        if (!packaging.isNullOrEmpty()) {
+            binding.packagingText.text = bold(getString(R.string.packaging_environmentTab))
+            binding.packagingText.append(" ")
+            binding.packagingText.append(packaging.split(',').toString().removeSurrounding("[", "]"))
+        } else {
+            binding.packagingCv.visibility = View.GONE
+        }
+
         val recyclingInstructionsToDiscard = product.recyclingInstructionsToDiscard
         if (!recyclingInstructionsToDiscard.isNullOrEmpty()) {
             binding.recyclingInstructionToDiscard.text = bold("Recycling instructions - To discard: ")
@@ -111,7 +118,6 @@ class EnvironmentProductFragment : BaseFragment() {
     }
 
     override fun onDestroyView() {
-        disp.dispose()
         super.onDestroyView()
         _binding = null
     }
