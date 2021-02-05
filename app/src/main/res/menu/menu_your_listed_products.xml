@@ -1,16 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
+
     <item
-        android:id="@+id/action_export_all_listed_products"
-        android:icon="@drawable/ic_file_download_black_24dp"
-        android:title="@string/export_csv_history"
+        android:id="@+id/add"
+        android:icon="@drawable/playlist_add"
+        android:title="Add product to List"
         app:showAsAction="ifRoom" />
 
     <item
         android:id="@+id/action_sort_listed_products"
-        android:icon="@drawable/ic_sort_black_24dp"
-        android:title="@string/sort"
-        app:showAsAction="ifRoom" />
+        android:title="Sort" />
+
+    <item
+        android:id="@+id/ufrnsjd"
+        android:title="Duplicate List" />
+
+    <item
+        android:id="@+id/sdf"
+        android:title="Mark as Completed" />
+
+    <item
+        android:id="@+id/action_export_all_listed_products"
+        android:title="Export as CSV" />
+
+
 
 </menu>
