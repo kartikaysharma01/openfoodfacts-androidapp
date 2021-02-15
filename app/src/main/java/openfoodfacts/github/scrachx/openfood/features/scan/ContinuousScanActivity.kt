@@ -23,7 +23,6 @@ import android.util.Log
 import android.view.*
 import android.view.Gravity.CENTER
 import android.view.inputmethod.EditorInfo
-import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.TextView.OnEditorActionListener
@@ -747,6 +746,7 @@ class ContinuousScanActivity : AppCompatActivity() {
             || product!!.ingredientsText == null
             || product!!.ingredientsText == ""
 
+    @Suppress("deprecation")
     private fun toggleCamera() {
         if(!useMLScanner) {
             val settings = binding.barcodeScanner.barcodeView.cameraSettings
