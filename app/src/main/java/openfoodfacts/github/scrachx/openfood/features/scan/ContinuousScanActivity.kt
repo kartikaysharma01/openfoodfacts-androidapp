@@ -41,6 +41,7 @@ import androidx.vectordrawable.graphics.drawable.VectorDrawableCompat
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetBehavior.BottomSheetCallback
 import com.google.android.material.bottomsheet.BottomSheetBehavior.from
+import com.google.android.material.chip.Chip
 import com.google.mlkit.vision.barcode.*
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.ResultPoint
@@ -119,7 +120,7 @@ class ContinuousScanActivity : AppCompatActivity() {
     private var graphicOverlay: GraphicOverlay? = null
     private var workflowModel: WorkflowModel? = null
     private var currentWorkflowState: WorkflowState? = null
-
+    private var promptChip: Chip? = null
 
     private val commonDisp = CompositeDisposable()
     private var productDisp: Disposable? = null
@@ -134,6 +135,9 @@ class ContinuousScanActivity : AppCompatActivity() {
     private var analysisTagsEmpty = true
     private var productShowing = false
     private var beepActive = false
+    /**
+    boolean to determine if MLKit Scanner is to be used
+     */
     private var useMLScanner = false
 
     private var offlineSavedProduct: OfflineSavedProduct? = null
@@ -158,6 +162,7 @@ class ContinuousScanActivity : AppCompatActivity() {
         binding.barcodeScanner.visibility = View.GONE
         binding.cameraPreview.visibility = View.GONE
         binding.barcodeScanner.pause()
+        stopCameraPreview()
         binding.imageForScreenshotGenerationOnly.visibility = View.VISIBLE
         setShownProduct(barcode)
     }
@@ -521,8 +526,7 @@ class ContinuousScanActivity : AppCompatActivity() {
 
                 cameraSource = CameraSource(this).apply {
                     requestedCameraId = cameraState
-                    Log.i("CSSAA", "inside on create CameraSource apply")
-                    this.setFocusMode(autoFocusActive)
+                    setFocusMode(autoFocusActive)
                 }
                 setOnClickListener{
                     quickViewBehavior.state = BottomSheetBehavior.STATE_HIDDEN
@@ -530,6 +534,8 @@ class ContinuousScanActivity : AppCompatActivity() {
                     startCameraPreview()
                 }
             }
+            promptChip = findViewById(R.id.bottom_prompt_chip)
+
             setUpWorkflowModel()
         }
 
@@ -555,17 +561,19 @@ class ContinuousScanActivity : AppCompatActivity() {
 
             when (workflowState) {
                 WorkflowState.DETECTING -> {
+                    promptChip?.visibility = View.VISIBLE
+                    promptChip?.setText(R.string.prompt_point_at_a_barcode)
                     startCameraPreview()
                 }
                 WorkflowState.CONFIRMING -> {
+                    promptChip?.visibility = View.VISIBLE
+                    promptChip?.setText(R.string.prompt_move_camera_closer)
                     startCameraPreview()
                 }
-                WorkflowState.SEARCHING -> {
+                WorkflowState.DETECTED -> {
                     stopCameraPreview()
                 }
-                WorkflowState.DETECTED, WorkflowState.SEARCHED -> {
-                    stopCameraPreview()
-                }
+                else -> promptChip?.visibility = View.GONE
             }
 
         })
@@ -573,22 +581,22 @@ class ContinuousScanActivity : AppCompatActivity() {
         workflowModel?.detectedBarcode?.observe(this, { barcode ->
             if (barcode != null) {
                 mlBarcodeCallback(barcode.rawValue)
-                Log.i("inside","barcode "+barcode.rawValue)
+                Log.i(LOG_TAG,"barcode ="+barcode.rawValue)
             }
         })
     }
 
 
     private fun startCameraPreview() {
-        Log.i("inside","startCamerra Preview")
         val workflowModel = this.workflowModel ?: return
         val cameraSource = this.cameraSource ?: return
+
         if (!workflowModel.isCameraLive) {
             try {
                 workflowModel.markCameraLive()
                 preview?.start(cameraSource)
             } catch (e: IOException) {
-                Log.e("ContinuousScanActivity", "Failed to start camera preview!", e)
+                Log.e(LOG_TAG, "Failed to start camera preview!", e)
                 cameraSource.release()
                 this.cameraSource = null
             }
@@ -596,8 +604,8 @@ class ContinuousScanActivity : AppCompatActivity() {
     }
 
     private fun stopCameraPreview() {
-        Log.i("inside","stopCamerra Preview")
         val workflowModel = this.workflowModel ?: return
+
         if (workflowModel.isCameraLive) {
             workflowModel.markCameraFrozen()
             preview?.stop()
@@ -605,7 +613,6 @@ class ContinuousScanActivity : AppCompatActivity() {
     }
 
     private fun mlBarcodeCallback(barcodeValue:String?){
-
         hintBarcodeDisp?.dispose()
 
         // Prevent duplicate scans
@@ -622,15 +629,14 @@ class ContinuousScanActivity : AppCompatActivity() {
     }
 
     override fun onStart() {
-        Log.i("inside","onstart")
         super.onStart()
         EventBus.getDefault().register(this)
     }
 
     override fun onResume() {
-        Log.i("inside","onresume")
         super.onResume()
         binding.bottomNavigation.bottomNavigation.selectNavigationItem(R.id.scan_bottom_nav)
+
         if(!useMLScanner && quickViewBehavior.state != BottomSheetBehavior.STATE_EXPANDED) {
             binding.barcodeScanner.resume()
         }
@@ -643,7 +649,6 @@ class ContinuousScanActivity : AppCompatActivity() {
     }
 
     override fun onPostResume() {
-        Log.i("inside","omPostResume")
         super.onPostResume()
         // Back to working state after the bottom sheet is dismissed.
         ViewModelProviders.of(this).get(WorkflowModel::class.java).setWorkflowState(WorkflowState.DETECTING)
@@ -659,7 +664,6 @@ class ContinuousScanActivity : AppCompatActivity() {
             binding.barcodeScanner.pause()
         }
         else{
-            Log.i("inside","onPause")
             currentWorkflowState = WorkflowState.NOT_STARTED
             stopCameraPreview()
         }
@@ -672,7 +676,6 @@ class ContinuousScanActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        Log.i("inside","onDestroy")
         summaryProductPresenter?.dispose()
 
         cameraSource?.release()
@@ -715,7 +718,7 @@ class ContinuousScanActivity : AppCompatActivity() {
             // turn flash on if flashActive true in pref
             if (flashActive) {
                 if(useMLScanner) {
-                    cameraSource!!.updateFlashMode(flashActive)
+                    cameraSource?.updateFlashMode(flashActive)
                     binding.toggleFlash.setImageResource(R.drawable.ic_flash_on_white_24dp)
                 } else{
                     binding.barcodeScanner.setTorchOn()
@@ -771,7 +774,6 @@ class ContinuousScanActivity : AppCompatActivity() {
     }
 
     private fun toggleFlash() {
-        Log.i("CSSAA", "inside toggle flash")
         cameraPref.edit {
             if (flashActive) {
                 flashActive = false
@@ -826,6 +828,9 @@ class ContinuousScanActivity : AppCompatActivity() {
                             }
                             val settings = binding.barcodeScanner.barcodeView.cameraSettings
                             settings.isAutoFocusEnabled = autoFocusActive
+                            binding.barcodeScanner.resume()
+                            binding.barcodeScanner.barcodeView.cameraSettings = settings
+
                         }
                     }
                     R.id.troubleScanning -> {
@@ -863,7 +868,6 @@ class ContinuousScanActivity : AppCompatActivity() {
     }
 
     fun collapseBottomSheet() {
-        Log.i("inside","collapse bottomm screen")
         quickViewBehavior.state = BottomSheetBehavior.STATE_HIDDEN
     }
 
@@ -874,9 +878,8 @@ class ContinuousScanActivity : AppCompatActivity() {
 
     private inner class QuickViewCallback : BottomSheetCallback() {
         private var previousSlideOffset = 0f
+
         override fun onStateChanged(bottomSheet: View, newState: Int) {
-            Log.i("inside","onStateChanged")
-            Log.i("inside","new state = " + newState)
 
             when (newState) {
                 BottomSheetBehavior.STATE_HIDDEN -> {
@@ -886,7 +889,6 @@ class ContinuousScanActivity : AppCompatActivity() {
                 BottomSheetBehavior.STATE_COLLAPSED -> {
                     if (useMLScanner) {
                         workflowModel?.setWorkflowState(WorkflowState.DETECTED)
-                        Log.i("inside", "stop camers Preview from line 871")
                         stopCameraPreview()
                     } else {
                         binding.barcodeScanner.pause()
@@ -895,7 +897,6 @@ class ContinuousScanActivity : AppCompatActivity() {
                 else -> {
                     if (useMLScanner) {
                         workflowModel?.setWorkflowState(WorkflowState.DETECTED)
-                        Log.i("inside", "stop camers Preview from line 888")
                         stopCameraPreview()
                     } else {
                         binding.barcodeScanner.pause()
@@ -913,7 +914,6 @@ class ContinuousScanActivity : AppCompatActivity() {
         }
 
         override fun onSlide(bottomSheet: View, slideOffset: Float) {
-            Log.i("inside","onSlide")
             val slideDelta = slideOffset - previousSlideOffset
             if (binding.quickViewSearchByBarcode.visibility != View.VISIBLE && binding.quickViewProgress.visibility != View.VISIBLE) {
                 if (slideOffset > 0.01f || slideOffset < -0.01f) {
@@ -925,7 +925,6 @@ class ContinuousScanActivity : AppCompatActivity() {
                     binding.quickViewDetails.visibility = View.GONE
                     binding.quickViewTags.visibility = View.GONE
                     if(useMLScanner){
-                        Log.i("inside", "stop camers Preview from line 903")
                         workflowModel?.setWorkflowState(WorkflowState.DETECTED)
                         stopCameraPreview()
                     }
@@ -939,7 +938,6 @@ class ContinuousScanActivity : AppCompatActivity() {
                 } else {
                     if(useMLScanner){
                         workflowModel?.setWorkflowState(WorkflowState.DETECTING)
-                        Log.i("inside", "startCamera Preview from line 915")
                         startCameraPreview()
                     }
                     else {

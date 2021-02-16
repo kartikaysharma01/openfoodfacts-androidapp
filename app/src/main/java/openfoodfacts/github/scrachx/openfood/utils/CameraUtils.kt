@@ -6,8 +6,10 @@ import android.content.res.Configuration
 import android.graphics.*
 import android.hardware.Camera
 import android.util.Log
+import com.google.mlkit.vision.barcode.Barcode
 import com.google.mlkit.vision.common.InputImage
 import openfoodfacts.github.scrachx.openfood.camera.CameraSizePair
+import openfoodfacts.github.scrachx.openfood.camera.GraphicOverlay
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 import java.util.ArrayList
@@ -99,6 +101,27 @@ object CameraUtils {
             Log.e("Camera Utils", "Error: " + e.message)
         }
         return null
+    }
+
+
+
+    fun getProgressToMeetBarcodeSizeRequirement(overlay: GraphicOverlay, barcode: Barcode): Float {
+        val reticleBoxWidth = getBarcodeReticleBox(overlay).width()
+        val barcodeWidth = overlay.translateX(barcode.boundingBox?.width()?.toFloat() ?: 0f)
+        val requiredWidth = reticleBoxWidth * 50/100
+        return (barcodeWidth / requiredWidth).coerceAtMost(1f)
+    }
+
+
+
+    fun getBarcodeReticleBox(overlay: GraphicOverlay): RectF {
+        val overlayWidth = overlay.width.toFloat()
+        val overlayHeight = overlay.height.toFloat()
+        val boxWidth = overlayWidth * 80 / 100
+        val boxHeight = overlayHeight * 40 / 100
+        val cx = overlayWidth / 2
+        val cy = overlayHeight / 2
+        return RectF(cx - boxWidth / 2, cy - boxHeight / 2, cx + boxWidth / 2, cy + boxHeight / 2)
     }
 
 }
