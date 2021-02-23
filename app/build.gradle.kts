@@ -315,6 +315,11 @@ android {
             dimension = "platform"
         }
         create("fdroid") {
+            tasks.whenTaskAdded {
+                if(this.name.contains("persistSentryProguardUuids")) {
+                    this.enabled= false
+                }
+            }
             dimension = "platform"
         }
     }
